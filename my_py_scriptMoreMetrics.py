@@ -1,3 +1,9 @@
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem import PandasTools
+from rdkit.Chem import Descriptors
+from rdkit.Chem import rdmolops
+
 import sys
 import tensorflow as tf
 print("tf.__version__: %s" % str(tf.__version__))
@@ -7,11 +13,6 @@ print("dc.__version__: %s" % str(dc.__version__))
 from deepchem.utils.save import load_from_disk
 import pandas as pd
 print(pd)
-from rdkit import Chem
-from rdkit.Chem import Draw
-from rdkit.Chem import PandasTools
-from rdkit.Chem import Descriptors
-from rdkit.Chem import rdmolops
 "import seaborn as sns"
 data = pd.DataFrame()
 pd.__version__
@@ -62,6 +63,8 @@ loader = dc.data.UserCSVLoader(
       tasks=["bindingClass"], id_field="casrn",
       featurizer=featurizer)
 g.to_csv('balanced.csv',index=False)
+tmp_df.to_csv('unbalanced.csv',index=False)
+
 g.columns
 g.drop(columns=['s_sd_Canonical\_QSARr','s_m_title','cas','cid', 'gsid','dsstox_substance_id', 'preferred_name','InChI_Code_QSARr','InChI Key_QSARr', 'BindingClass'])
 g.to_csv('balanced_droppedcols.csv',index=False)
@@ -86,7 +89,8 @@ tmp_dataset_file = "tmp_df.csv"
 tmp_dataset = loader.featurize(tmp_dataset_file)
 transformers = [
     dc.trans.NormalizationTransformer(transform_X=True, dataset=dataset),
-    dc.trans.ClippingTransformer(transform_X=True, dataset=dataset)]
+#    dc.trans.ClippingTransformer(transform_X=True, dataset=dataset)]
+]
 
 datasets = [dataset, valid_dataset, tmp_dataset]
 for i, dataset in enumerate(datasets):
@@ -166,10 +170,23 @@ f1_score_valid = 2*((valid_scores["accuracy_score"]*valid_scores["recall_score"]
 
 print("RF Validation F1 Scores: %f" % f1_score_valid)
 
+tmp_scores = best_rf.evaluate(tmp_dataset, [metric_rocauc, metric_recall, metric_precision, metric_mcc], transformers)
+
+print("RF Tmp ROC-AUC Scores: %f" % (tmp_scores["roc_auc_score"]))
+print("RF Tmp Recall Scores: %f" % (tmp_scores["recall_score"]))
+#print("Training F1 Scores: %f" % (train_scores["f1_score"]))
+print("RF Tmp Precision: %f" % (tmp_scores["accuracy_score"]))
+print("RF Tmp MCC: %f" % (tmp_scores["matthews_corrcoef"]))
+
+f1_score_tmp = 2*((tmp_scores["accuracy_score"]*tmp_scores["recall_score"])/(tmp_scores["accuracy_score"]+tmp_scores["recall_score"]))
+
+print("RF Tmp F1 Scores: %f" % f1_score_tmp)
+
+
 
 """Fit and optimize Deep Neural Network"""
 import numpy as np
-params_dict = {"learning_rate": np.power(10., np.random.uniform(-5, -3, size=1)), "weight_decay_penalty": np.power(10, np.random.uniform(-6, -4, size=1)),"nb_epoch": [2500000] }
+params_dict = {"learning_rate": np.power(10., np.random.uniform(-5, -3, size=1)), "weight_decay_penalty": np.power(10, np.random.uniform(-6, -4, size=1)),"nb_epoch": [25000000] }
 n_features = train_dataset.get_data_shape()[0]
 def model_builder(model_params, model_dir):
   model = dc.models.MultitaskClassifier(
@@ -183,6 +200,54 @@ best_dnn, best_dnn_hyperparams, all_dnn_results = optimizer.hyperparam_search(
 #best_dnn.save()
 #best_dnn
 #model.save()
+
+num_epochs=525
+trainlosses = []
+all_losses = []
+vallosses = []
+for i in range(num_epochs):
+    trainloss = best_dnn.fit(train_dataset, nb_epoch=1, 
+#all_losses=all_losses)
+    )
+    print("Epoch %d Train loss: %f" % (i, trainloss))
+    trainlosses.append(trainloss)
+    valloss = best_dnn.fit(valid_dataset, nb_epoch=1,
+#all_losses=all_losses)
+    )
+    print("Epoch %d Validation loss: %f" % (i, valloss))
+    vallosses.append(valloss)
+
+from numpy import *
+import math
+import matplotlib.pyplot as plt
+
+print("Imported matplotlib.pyplot as plt")
+
+#t = range(num_epochs)
+t = range(525)
+
+#def remove_values_from_list(the_list, val):
+#   return [value for value in the_list if value != val]
+
+#x = [1, 2, 3, 4, 2, 2, 3]
+#x = remove_values_from_list(x, 2)
+
+#trainlosses = remove_values_from_list(trainlosses, 0)
+#vallosses = remove_values_from_list(vallosses, 0)
+
+#print("Removed zeroes from arrays")
+
+
+fig = plt.plot(t, trainlosses, 'b')  #blue
+fig = plt.plot(t, vallosses, 'r') #red
+plt.show()
+
+figA = fig[0].get_figure()
+
+#figA = fig.get_figure()
+
+figA.savefig('figA.png',dpi=600)
+
 from deepchem.utils.evaluate import Evaluator
 rf_train_csv_out = "rf_train_classifier.csv"
 rf_train_stats_out = "rf_train_stats_classifier.txt"
@@ -196,6 +261,15 @@ rf_valid_evaluator = Evaluator(best_rf, valid_dataset, transformers)
 rf_valid_score = rf_valid_evaluator.compute_model_performance(
     [metric], rf_valid_csv_out, rf_valid_stats_out)
 print("RF Valid set AUC %f" % (rf_valid_score["roc_auc_score"]))
+
+rf_tmp_csv_out = "rf_tmp_classifier.csv"
+rf_tmp_stats_out = "rf_tmp_stats_classifier.txt"
+rf_tmp_evaluator = Evaluator(best_rf, tmp_dataset, transformers)
+rf_tmp_score = rf_tmp_evaluator.compute_model_performance(
+    [metric], rf_tmp_csv_out, rf_tmp_stats_out)
+print("RF Tmp set AUC %f" % (rf_tmp_score["roc_auc_score"]))
+
+
 dnn_train_csv_out = "dnn_train_classifier.csv"
 dnn_train_stats_out = "dnn_train_classifier_stats.txt"
 dnn_train_evaluator = Evaluator(best_dnn, train_dataset, transformers)
@@ -239,6 +313,24 @@ f1_score_valid = 2*((valid_scores["accuracy_score"]*valid_scores["recall_score"]
 
 print("DNN Validation F1 Scores: %f" % f1_score_valid)
 
+
+dnn_tmp_csv_out = "dnn_tmp_classifier.csv"
+dnn_tmp_stats_out = "dnn_tmp_stats_classifier.txt"
+dnn_tmp_evaluator = Evaluator(best_dnn, tmp_dataset, transformers)
+dnn_tmp_score = dnn_tmp_evaluator.compute_model_performance(
+    [metric], dnn_tmp_csv_out, dnn_tmp_stats_out)
+print("DNN Tmp set AUC %f" % (dnn_tmp_score["roc_auc_score"]))
+tmp_scores = best_dnn.evaluate(tmp_dataset, [metric_rocauc, metric_recall, metric_precision, metric_mcc], transformers)
+
+print("DNN Tmp ROC-AUC Scores: %f" % (tmp_scores["roc_auc_score"]))
+print("DNN Tmp Recall Scores: %f" % (tmp_scores["recall_score"]))
+#print("Training F1 Scores: %f" % (train_scores["f1_score"]))
+print("DNN Tmp Precision: %f" % (tmp_scores["accuracy_score"]))
+print("DNN Tmp MCC: %f" % (tmp_scores["matthews_corrcoef"]))
+
+f1_score_tmp = 2*((tmp_scores["accuracy_score"]*tmp_scores["recall_score"])/(tmp_scores["accuracy_score"]+tmp_scores["recall_score"]))
+
+print("DNN Tmp F1 Scores: %f" % f1_score_tmp)
 
 
 
