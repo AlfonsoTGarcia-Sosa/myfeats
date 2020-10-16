@@ -39,7 +39,7 @@ dependencies:
   - ncurses=6.2=he6710b0_1
   - olefile=0.46=py_0
   - openssl=1.1.1g=h516909a_1
-  - pandas=0.25.3
+  - pandas=0.25.3=py37hb3f55d8_0
   - pcre=8.44=he1b5a44_0
   - pillow=7.2.0=py37h718be6c_1
   - pip=20.2.2=py37_0
@@ -76,6 +76,7 @@ dependencies:
   - pip:
     - absl-py==0.10.0
     - astor==0.8.1
+    - cycler==0.10.0
     - gast==0.4.0
     - google-pasta==0.2.0
     - grpcio==1.32.0
@@ -83,9 +84,12 @@ dependencies:
     - importlib-metadata==1.7.0
     - keras-applications==1.0.8
     - keras-preprocessing==1.1.2
+    - kiwisolver==1.2.0
     - markdown==3.2.2
+    - matplotlib==3.3.2
     - numpy==1.19.2
     - protobuf==3.13.0
+    - pyparsing==2.4.7
     - tensorboard==1.14.0
     - tensorflow==1.14.0
     - tensorflow-estimator==1.14.0
@@ -93,4 +97,4 @@ dependencies:
     - werkzeug==1.0.1
     - wrapt==1.12.1
     - zipp==3.1.0
-
+prefix: /home/al/tart/programs/Anaconda/envs/deepch
